@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with SRT Sync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        #upload-form {
+            margin-bottom: 20px;
+        }
+        #links-container a {
+            display: block;
+            margin: 5px 0;
+            text-decoration: none;
+            color: #007bff;
+            cursor: pointer;
+        }
+        #links-container a:hover {
+            text-decoration: underline;
+        }
+        #video-container {
+            margin-top: 20px;
+        }
+        video {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Upload Video and SRT File</h1>
+
+    <form id="upload-form" enctype="multipart/form-data">
+        <label for="video-upload">Upload Video:</label>
+        <input type="file" id="video-upload" accept="video/*"><br><br>
+        <label for="srt-upload">Upload Subtitle (.srt):</label>
+        <input type="file" id="srt-upload" accept=".srt"><br><br>
+        <button type="submit">Upload and Generate Links</button>
+    </form>
+
+    <div id="video-container">
+        <video id="video-player" controls>
+            <source id="video-source" src="" type="video/mp4">
+            <track id="track-source" src="" kind="subtitles" srclang="en" label="English">
+        </video>
+    </div>
+
+    <div id="links-container"></div>
+
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const videoFile = document.getElementById('video-upload').files[0];
+            const srtFile = document.getElementById('srt-upload').files[0];
+
+            if (videoFile && srtFile) {
+                const videoPlayer = document.getElementById('video-player');
+                const videoSource = document.getElementById('video-source');
+                const trackSource = document.getElementById('track-source');
+
+                // Clear previous video and subtitle sources
+                videoSource.src = '';
+                trackSource.src = '';
+
+                // Set video source
+                const videoURL = URL.createObjectURL(videoFile);
+                videoSource.src = videoURL;
+                videoPlayer.load();
+
+                // Process SRT file and generate links
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const srtContent = e.target.result;
+                    generateLinks(srtContent);
+                    // Attach subtitle track to video player
+                    const trackBlob = new Blob([srtContent], { type: 'text/vtt' });
+                    const trackURL = URL.createObjectURL(trackBlob);
+                    trackSource.src = trackURL;
+                };
+                reader.readAsText(srtFile);
+            }
+        });
+
+        function generateLinks(srtContent) {
+            const lines = srtContent.split('\n');
+            let linksHTML = '';
+            let currentTimestamp = 0;
+
+            lines.forEach((line, index) => {
+                if (line.includes('-->')) {
+                    currentTimestamp = parseTimestamp(line.split(' --> ')[0]);
+
+                } else if (line.trim() !== '' && !line.includes('-->')) {
+
+                    linksHTML += `<a class="sentence" href="#" data-time="${currentTimestamp}">${line.trim()}</a><br>`;
+                }
+            });
+
+            document.getElementById('links-container').innerHTML = linksHTML;
+        }
+
+        function parseTimestamp(timestamp) {
+            const parts = timestamp.split(':');
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10);
+            const seconds = parseFloat(parts[2].replace(',', '.'));
+            return hours * 3600 + minutes * 60 + seconds;
+        }
+
+        // ... (código existente)
+
+document.getElementById('links-container').addEventListener('click', function(event) {
+    if (event.target && event.target.className === 'sentence') {
+        event.preventDefault();
+        const videoPlayer = document.getElementById('video-player');
+        const time = parseFloat(event.target.getAttribute('data-time'));
+
+        // Aumentar o timeout para garantir que o player esteja atualizado
+        setTimeout(() => {
+            videoPlayer.currentTime = time;
+            videoPlayer.play().catch(error => {
+                console.error('Erro ao tentar reproduzir o vídeo:', error);
+            });
+        }, 500); // Ajuste o valor do timeout conforme necessário
+    }
+});
+    </script>
+
+</body>
+</html>

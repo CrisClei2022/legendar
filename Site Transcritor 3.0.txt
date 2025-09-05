@@ -1,0 +1,509 @@
+--------------------------------------------------------------------------------
+
+se repetir tiver um valor
+e
+se continuar automaticamente estiver ativado
+e
+se clicar no trecho
+=
+deve repetir o trecho vezes o valor de repetir
+e depois
+deve repetir o trecho seguinte vezes o valor de repetir
+e 
+assim por diante
+
+
+---------------------------------------------
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with SRT Sync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        #upload-form {
+            margin-bottom: 20px;
+        }
+        #links-container a {
+            display: block;
+            margin: 5px 0;
+            text-decoration: none;
+            color: #007bff;
+            cursor: pointer;
+        }
+        #links-container a:hover {
+            text-decoration: underline;
+        }
+        #video-container {
+            margin-top: 20px;
+        }
+        video {
+            max-width: 100%;
+            height: auto;
+        }
+        #controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .control-section {
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+            flex: 1;
+        }
+        .control-section label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .control-section select, .control-section input {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Upload Video and SRT File</h1>
+
+    <form id="upload-form" enctype="multipart/form-data">
+        <label for="video-upload">Upload Video:</label>
+        <input type="file" id="video-upload" accept="video/*"><br><br>
+        <label for="srt-upload">Upload Subtitle (.srt):</label>
+        <input type="file" id="srt-upload" accept=".srt"><br><br>
+        <button type="submit">Upload and Generate Links</button>
+    </form>
+
+    <div id="video-container" data-layer="0" draggable="true"><video id="video-player" controls style="width: 847px; height: 476px; left: 0px; top: 0px;" controlslist="nodownload">
+      		<source id="video-source" src="" type="video/mp4">
+      </video>
+  </div>
+
+<div id="repeat-container">
+    <label for="repeat-count">Repetir automático</label>
+    <select id="repeat-count">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+    </select>
+    <label for="repeat-count">vezes</label>
+</div>
+
+<div id="autocontinue-container">
+    <input type="checkbox" id="auto-continue" checked>
+    <label for="auto-continue">Auto continuar ativado</label>
+</div>
+  
+<br></br>
+
+    <div id="links-container"></div>
+
+
+<script>
+// ... (existing code for upload and link generation)
+
+  let currentSegment = 0;
+  let repeatCount = 1;
+  let autoContinue = true;
+
+// ... (existing code for upload and link generation)
+
+
+  document.getElementById('links-container').addEventListener('click', function(event) {
+    if (event.target && event.target.className === 'sentence') {
+      event.preventDefault();
+      const videoPlayer = document.getElementById('video-player');
+      const time = parseFloat(event.target.getAttribute('data-time'));
+
+      videoPlayer.pause();
+      videoPlayer.currentTime = time;
+      videoPlayer.play().catch(error => {
+        console.error('Erro ao tentar reproduzir o vídeo:', error);
+      });
+
+      currentSegment++;
+
+      if (autoContinue && repeatCount > 1) {
+        setTimeout(() => {
+          videoPlayer.play();
+        }, videoPlayer.duration * 1000); // Assuming segment length = video duration
+      }
+    }
+  });
+
+  document.getElementById('video-player').addEventListener('ended', function() {
+    if (repeatCount > 1 && !this.error) {
+      repeatCount--;
+      if (autoContinue && repeatCount > 0) {
+        this.currentTime = 0; // Seek to the beginning of the segment
+        this.play();
+      }
+    }
+  });
+
+  document.getElementById('repeat-count').addEventListener('change', function() {
+    repeatCount = parseInt(this.value, 10);
+  });
+
+  document.getElementById('auto-continue').addEventListener('change', function() {
+    autoContinue = this.checked;
+  });
+
+
+
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const videoFile = document.getElementById('video-upload').files[0];
+            const srtFile = document.getElementById('srt-upload').files[0];
+
+            if (videoFile && srtFile) {
+                const videoPlayer = document.getElementById('video-player');
+                const videoSource = document.getElementById('video-source');
+
+                videoSource.src = URL.createObjectURL(videoFile);
+                videoPlayer.load();
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const srtContent = e.target.result;
+                    generateLinks(srtContent);
+                };
+                reader.readAsText(srtFile);
+            }
+        });
+
+function generateLinks(srtContent) {
+    const lines = srtContent.split('\n');
+    let linksHTML = '';
+    let currentTimestamp = 0;
+
+    lines.forEach((line, index) => {
+        // Ignorar linhas que contêm apenas números (normalmente o índice das legendas)
+        if (line.trim().match(/^\d+$/)) {
+            return;  // Continue para a próxima iteração do loop
+        }
+
+        if (line.includes('-->')) {
+            currentTimestamp = parseTimestamp(line.split(' --> ')[0]);
+
+        } else if (line.trim() !== '' && !line.includes('-->')) {
+            linksHTML += `<a class="sentence" href="#" data-time="${currentTimestamp}">${line.trim()}</a><br>`;
+        }
+    });
+
+    document.getElementById('links-container').innerHTML = linksHTML;
+}
+
+function parseTimestamp(timestamp) {
+    const parts = timestamp.split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    const seconds = parseFloat(parts[2].replace(',', '.'));
+    return hours * 3600 + minutes * 60 + seconds;
+}
+
+// ... (código existente)
+
+
+        document.getElementById('links-container').addEventListener('click', function(event) {
+            if (event.target && event.target.className === 'sentence') {
+                event.preventDefault();
+                const videoPlayer = document.getElementById('video-player');
+                const time = parseFloat(event.target.getAttribute('data-time'));
+
+                // Pause video, set current time, and play
+                videoPlayer.pause();
+                videoPlayer.currentTime = time;
+                videoPlayer.play().catch(error => {
+                    console.error('Erro ao tentar reproduzir o vídeo:', error);
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+
+se repetir tiver um valor
+e
+se continuar automaticamente estiver ativado
+e
+se clicar no trecho
+=
+deve repetir o trecho vezes o valor de repetir
+e depois
+deve repetir o trecho seguinte vezes o valor de repetir
+e 
+assim por diante
+
+
+---------------------------------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player with SRT Sync</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        #upload-form {
+            margin-bottom: 20px;
+        }
+        #links-container a {
+            display: block;
+            margin: 5px 0;
+            text-decoration: none;
+            color: #007bff;
+            cursor: pointer;
+        }
+        #links-container a:hover {
+            text-decoration: underline;
+        }
+        #video-container {
+            margin-top: 20px;
+        }
+        video {
+            max-width: 100%;
+            height: auto;
+        }
+        #controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .control-section {
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #fff;
+            flex: 1;
+        }
+        .control-section label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .control-section select, .control-section input {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        #button-container {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            z-index: 10;
+        }
+        #button-container button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #button-container button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Upload Video and SRT File</h1>
+
+    <form id="upload-form" enctype="multipart/form-data">
+        <label for="video-upload">Upload Video:</label>
+        <input type="file" id="video-upload" accept="video/*"><br><br>
+        <label for="srt-upload">Upload Subtitle (.srt):</label>
+        <input type="file" id="srt-upload" accept=".srt"><br><br>
+        <button type="submit">Upload and Generate Links</button>
+    </form>
+
+    <div id="video-container">
+        <video id="video-player" controls>
+            <source id="video-source" src="" type="video/mp4">
+        </video>
+    </div>
+
+    <div id="repeat-container">
+        <label for="repeat-count">Repetir automático</label>
+        <select id="repeat-count">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+        </select>
+        <label for="repeat-count">vezes</label>
+    </div>
+
+    <div id="autocontinue-container">
+        <input type="checkbox" id="auto-continue" checked>
+        <label for="auto-continue">Auto continuar ativado</label>
+    </div>
+
+    <div id="button-container">
+        <button type="button" id="reproduzir-anterior">Reproduzir Anterior</button>
+        <button type="button" id="repetir-atual">Repetir Atual</button>
+        <button type="button" id="reproduzir-proximo">Reproduzir Próximo</button>
+    </div>
+
+    <div id="links-container"></div>
+
+    <script>
+        let currentSegment = 0;
+        let repeatCount = 1;
+        let autoContinue = true;
+        let segments = [];
+        let videoPlayer = document.getElementById('video-player');
+
+        document.getElementById('upload-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const videoFile = document.getElementById('video-upload').files[0];
+            const srtFile = document.getElementById('srt-upload').files[0];
+
+            if (videoFile && srtFile) {
+                const videoSource = document.getElementById('video-source');
+                videoSource.src = URL.createObjectURL(videoFile);
+                videoPlayer.load();
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const srtContent = e.target.result;
+                    segments = generateLinks(srtContent);
+                };
+                reader.readAsText(srtFile);
+            }
+        });
+
+        function generateLinks(srtContent) {
+            const lines = srtContent.split('\n');
+            let linksHTML = '';
+            let currentTimestamp = 0;
+            let segments = [];
+
+            lines.forEach((line, index) => {
+                if (line.trim().match(/^\d+$/)) {
+                    return;
+                }
+
+                if (line.includes('-->')) {
+                    currentTimestamp = parseTimestamp(line.split(' --> ')[0]);
+                    segments.push(currentTimestamp);
+                } else if (line.trim() !== '' && !line.includes('-->')) {
+                    linksHTML += `<a class="sentence" href="#" data-time="${currentTimestamp}">${line.trim()}</a><br>`;
+                }
+            });
+
+            document.getElementById('links-container').innerHTML = linksHTML;
+            return segments;
+        }
+
+        function parseTimestamp(timestamp) {
+            const parts = timestamp.split(':');
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10);
+            const seconds = parseFloat(parts[2].replace(',', '.'));
+            return hours * 3600 + minutes * 60 + seconds;
+        }
+
+        document.getElementById('links-container').addEventListener('click', function(event) {
+            if (event.target && event.target.className === 'sentence') {
+                event.preventDefault();
+                const time = parseFloat(event.target.getAttribute('data-time'));
+                playSegment(time);
+            }
+        });
+
+        function playSegment(time) {
+            videoPlayer.pause();
+            videoPlayer.currentTime = time;
+            videoPlayer.play().catch(error => {
+                console.error('Erro ao tentar reproduzir o vídeo:', error);
+            });
+
+            currentSegment = segments.indexOf(time);
+        }
+
+        document.getElementById('reproduzir-anterior').addEventListener('click', function() {
+            if (currentSegment > 0) {
+                currentSegment--;
+                playSegment(segments[currentSegment]);
+            }
+        });
+
+        document.getElementById('repetir-atual').addEventListener('click', function() {
+            if (segments.length > 0) {
+                playSegment(segments[currentSegment]);
+            }
+        });
+
+        document.getElementById('reproduzir-proximo').addEventListener('click', function() {
+            if (currentSegment < segments.length - 1) {
+                currentSegment++;
+                playSegment(segments[currentSegment]);
+            }
+        });
+
+        document.getElementById('repeat-count').addEventListener('change', function() {
+            repeatCount = parseInt(this.value, 10);
+        });
+
+        document.getElementById('auto-continue').addEventListener('change', function() {
+            autoContinue = this.checked;
+        });
+
+        videoPlayer.addEventListener('ended', function() {
+            if (repeatCount > 1) {
+                repeatCount--;
+                if (autoContinue && repeatCount > 0) {
+                    this.currentTime = segments[currentSegment]; // Seek to the current segment
+                    this.play();
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
